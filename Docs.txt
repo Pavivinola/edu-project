@@ -1,0 +1,34 @@
+El error es 403 Forbidden. Esto es porque tu API requiere autenticación y React no está enviando credenciales.
+Solución temporal para desarrollo
+Abre backend/config/settings.py y busca la sección REST_FRAMEWORK. Cámbiala temporalmente a:
+pythonREST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',  # ← CAMBIAR ESTA LÍNEA
+    ],
+}
+Reinicia el servidor de Django (Ctrl+C y python manage.py runserver)
+Ahora prueba de nuevo tu React, debería funcionar.
+
+¿Por qué pasa esto?
+Configuraste IsAuthenticated que requiere que el usuario esté logueado. Tienes dos opciones:
+Opción A: Dejar todo público temporalmente (lo que acabamos de hacer)
+
+Bueno para desarrollo inicial
+Puedes ver y probar todo sin login
+
+Opción B: Implementar autenticación completa
+
+Agregar login/logout en React
+Usar tokens de autenticación
+Más seguro pero más complejo
+
+
+Para ahora, usa la Opción A (cambiar a AllowAny).
+Más adelante podemos implementar un sistema de login completo con:
+
+Página de login
+Tokens JWT
+Protección de rutas según rol (estudiante/profesor/admin)

@@ -1,0 +1,1363 @@
+python manage.py startapp usuarios
+python manage.py startapp cursos
+python manage.py startapp calificaciones
+python manage.py startapp avisos
+python manage.py startapp materiales
+```
+
+## 5. Verificar que todo se creó correctamente
+
+Tu estructura debería verse así:
+```
+proyecto integrado/
+├── venv/
+├── config/
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── urls.py
+│   ├── asgi.py
+│   └── wsgi.py
+├── users/
+├── courses/
+├── grades/
+├── announcements/
+├── materials/
+├── manage.py
+└── .gitignore
+Ejecuta este comando para verificar que Django funciona:
+ manage.py --version
+Debería mostrarte la versión de Django instalada (probablemente 5.x).
+
+¡Perfecto! Ahora vamos a configurar Django y crear los modelos.
+1. Configurar config/settings.py
+Abre el archivo config/settings.py y busca la sección INSTALLED_APPS. Reemplázala con esto:
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    
+    # Third party
+    'rest_framework',
+    'corsheaders',
+    
+    # Local apps
+    'users',
+    'courses',
+    'grades',
+    'announcements',
+    'materials',
+]
+Ahora busca MIDDLEWARE y agrega corsheaders al inicio:
+MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # AGREGAR ESTA LÍNEA
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+Al final del archivo settings.py, agrega estas configuraciones:
+# Modelo de usuario personalizado
+AUTH_USER_MODEL = 'users.User'
+
+# CORS Configuration
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# REST Framework Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+# Media Files Configuration
+import os
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Static Files
+STATIC_URL = '/static/'
+2. Crear el modelo de Usuario personalizado
+Abre users/models.py y reemplaza todo su contenido con:
+
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+
+class User(AbstractUser):
+    ROLE_CHOICES = [
+        ('student', 'Estudiante'),
+        ('teacher', 'Profesor'),
+        ('admin', 'Administrador'),
+    ]
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    phone = models.CharField(max_length=20, blank=True)
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    
+    def __str__(self):
+        return f"{self.get_full_name()} ({self.get_role_display()})"
+3. Crear el modelo de Cursos
+
+Abre cursos/models.py:
+
+from django.db import models
+from django.conf import settings
+
+class Course(models.Model):
+    name = models.CharField(max_length=200, verbose_name="Nombre del curso")
+    code = models.CharField(max_length=20, unique=True, verbose_name="Código")
+    description = models.TextField(verbose_name="Descripción")
+    teacher = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE,
+        related_name='taught_courses',
+        limit_choices_to={'role': 'teacher'},
+        verbose_name="Profesor"
+    )
+    students = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name='enrolled_courses',
+        limit_choices_to={'role': 'student'},
+        blank=True,
+        verbose_name="Estudiantes"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    is_active = models.BooleanField(default=True, verbose_name="Activo")
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Curso"
+        verbose_name_plural = "Cursos"
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+4. Crear el modelo de Calificaciones
+Abre calificaciones/models.py:
+
+from django.db import models
+from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
+
+class Assignment(models.Model):
+    """Tarea o evaluación"""
+    course = models.ForeignKey(
+        'courses.Course', 
+        on_delete=models.CASCADE, 
+        related_name='assignments',
+        verbose_name="Curso"
+    )
+    title = models.CharField(max_length=200, verbose_name="Título")
+    description = models.TextField(verbose_name="Descripción")
+    max_score = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=100,
+        verbose_name="Puntaje máximo"
+    )
+    due_date = models.DateTimeField(verbose_name="Fecha de entrega")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    
+    class Meta:
+        ordering = ['-due_date']
+        verbose_name = "Tarea"
+        verbose_name_plural = "Tareas"
+    
+    def __str__(self):
+        return f"{self.course.code} - {self.title}"
+
+class Grade(models.Model):
+    """Calificación de un estudiante en una tarea"""
+    assignment = models.ForeignKey(
+        Assignment, 
+        on_delete=models.CASCADE, 
+        related_name='grades',
+        verbose_name="Tarea"
+    )
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE,
+        related_name='grades',
+        limit_choices_to={'role': 'student'},
+        verbose_name="Estudiante"
+    )
+    score = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        verbose_name="Calificación"
+    )
+    feedback = models.TextField(blank=True, verbose_name="Retroalimentación")
+    graded_at = models.DateTimeField(auto_now=True, verbose_name="Fecha de calificación")
+    
+    class Meta:
+        unique_together = ['assignment', 'student']
+        verbose_name = "Calificación"
+        verbose_name_plural = "Calificaciones"
+    
+    def __str__(self):
+        return f"{self.student.username} - {self.assignment.title}: {self.score}"
+
+5. Crear el modelo de Avisos
+Abre announcements/models.py:
+
+from django.db import models
+from django.conf import settings
+
+class Announcement(models.Model):
+    """Avisos o anuncios del curso"""
+    course = models.ForeignKey(
+        'courses.Course', 
+        on_delete=models.CASCADE, 
+        related_name='announcements',
+        verbose_name="Curso"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE,
+        verbose_name="Autor"
+    )
+    title = models.CharField(max_length=200, verbose_name="Título")
+    content = models.TextField(verbose_name="Contenido")
+    is_pinned = models.BooleanField(default=False, verbose_name="Fijado")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
+    
+    class Meta:
+        ordering = ['-is_pinned', '-created_at']
+        verbose_name = "Aviso"
+        verbose_name_plural = "Avisos"
+    
+    def __str__(self):
+        return f"{self.course.code} - {self.title}"
+
+6. Crear el modelo de Materiales
+
+Abre materials/models.py:
+
+from django.db import models
+from django.conf import settings
+
+def material_upload_path(instance, filename):
+    """Generar ruta de subida para materiales"""
+    return f'materials/{instance.course.code}/{filename}'
+
+class Material(models.Model):
+    """Materiales del curso (PDFs, videos, enlaces, etc.)"""
+    MATERIAL_TYPE_CHOICES = [
+        ('pdf', 'PDF'),
+        ('video', 'Video'),
+        ('link', 'Enlace'),
+        ('document', 'Documento'),
+        ('presentation', 'Presentación'),
+        ('other', 'Otro'),
+    ]
+    
+    course = models.ForeignKey(
+        'courses.Course', 
+        on_delete=models.CASCADE, 
+        related_name='materials',
+        verbose_name="Curso"
+    )
+    title = models.CharField(max_length=200, verbose_name="Título")
+    description = models.TextField(blank=True, verbose_name="Descripción")
+    material_type = models.CharField(
+        max_length=20, 
+        choices=MATERIAL_TYPE_CHOICES,
+        verbose_name="Tipo de material"
+    )
+    file = models.FileField(
+        upload_to=material_upload_path, 
+        blank=True, 
+        null=True,
+        verbose_name="Archivo"
+    )
+    url = models.URLField(blank=True, null=True, verbose_name="URL")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE,
+        verbose_name="Subido por"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de subida")
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = "Material"
+        verbose_name_plural = "Materiales"
+    
+    def __str__(self):
+        return f"{self.course.code} - {self.title}"
+
+7. Registrar modelos en el admin de Django
+
+Necesitamos registrar estos modelos para poder gestionarlos desde el panel de administración.
+Abre users/admin.py:
+
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
+from .models import User
+
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    list_display = ['username', 'email', 'first_name', 'last_name', 'role', 'is_staff']
+    list_filter = ['role', 'is_staff', 'is_superuser']
+    fieldsets = UserAdmin.fieldsets + (
+        ('Información adicional', {'fields': ('role', 'phone', 'avatar')}),
+    )
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ('Información adicional', {'fields': ('role', 'phone', 'avatar')}),
+    )
+
+Abre courses/admin.py:
+
+from django.contrib import admin
+from .models import Course
+
+@admin.register(Course)
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ['code', 'name', 'teacher', 'is_active', 'created_at']
+    list_filter = ['is_active', 'created_at']
+    search_fields = ['code', 'name', 'teacher__username']
+    filter_horizontal = ['students']
+
+
+Abre grades/admin.py:
+
+from django.contrib import admin
+from .models import Assignment, Grade
+
+@admin.register(Assignment)
+class AssignmentAdmin(admin.ModelAdmin):
+    list_display = ['title', 'course', 'max_score', 'due_date', 'created_at']
+    list_filter = ['course', 'due_date']
+    search_fields = ['title', 'course__code']
+
+@admin.register(Grade)
+class GradeAdmin(admin.ModelAdmin):
+    list_display = ['student', 'assignment', 'score', 'graded_at']
+    list_filter = ['assignment__course', 'graded_at']
+    search_fields = ['student__username', 'assignment__title']
+
+
+Abre announcements/admin.py:
+
+from django.contrib import admin
+from .models import Announcement
+
+@admin.register(Announcement)
+class AnnouncementAdmin(admin.ModelAdmin):
+    list_display = ['title', 'course', 'author', 'is_pinned', 'created_at']
+    list_filter = ['is_pinned', 'course', 'created_at']
+    search_fields = ['title', 'content', 'course__code']
+
+
+Abre materials/admin.py:
+
+from django.contrib import admin
+from .models import Material
+
+@admin.register(Material)
+class MaterialAdmin(admin.ModelAdmin):
+    list_display = ['title', 'course', 'material_type', 'uploaded_by', 'uploaded_at']
+    list_filter = ['material_type', 'course', 'uploaded_at']
+    search_fields = ['title', 'description', 'course__code']
+8. Crear las migraciones
+
+python manage.py makemigrations
+```
+
+Deberías ver algo como:
+```
+Migrations for 'users':
+  users\migrations\0001_initial.py
+    - Create model User
+Migrations for 'courses':
+  ...
+9. Aplicar las migraciones
+bashpython manage.py migrate
+10. Crear un superusuario
+bashpython manage.py createsuperuser
+Te pedirá:
+
+Username
+Email
+Password (escríbela dos veces)
+Role: escribe admin
+
+11. Probar que todo funciona
+bashpython manage.py runserver
+Abre tu navegador en: http://127.0.0.1:8000/admin
+Inicia sesión con el superusuario que creaste.
+
+Serializers y ViewSets
+Los Serializers convierten tus modelos Django a JSON (y viceversa), y los ViewSets manejan las operaciones CRUD automáticamente.
+
+1. Crear Serializers
+Crea un archivo usuarios/serializers.py:
+
+from rest_framework import serializers
+from .models import User
+
+class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False)
+    
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
+                  'role', 'phone', 'avatar', 'password']
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
+    
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = User.objects.create(**validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+        return user
+    
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
+
+class UserListSerializer(serializers.ModelSerializer):
+    """Serializer simplificado para listados"""
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'first_name', 'last_name', 'role', 'email']
+
+
+Crea cursos/serializers.py:
+
+from rest_framework import serializers
+from .models import Course
+from usuarios.serializers import UserListSerializer
+
+class CourseSerializer(serializers.ModelSerializer):
+    teacher_detail = UserListSerializer(source='teacher', read_only=True)
+    students_detail = UserListSerializer(source='students', many=True, read_only=True)
+    student_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Course
+        fields = ['id', 'name', 'code', 'description', 'teacher', 'teacher_detail',
+                  'students', 'students_detail', 'student_count', 'is_active', 'created_at']
+    
+    def get_student_count(self, obj):
+        return obj.students.count()
+
+class CourseListSerializer(serializers.ModelSerializer):
+    """Serializer simplificado para listados"""
+    teacher_name = serializers.CharField(source='teacher.get_full_name', read_only=True)
+    student_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Course
+        fields = ['id', 'code', 'name', 'teacher_name', 'student_count', 'is_active']
+    
+    def get_student_count(self, obj):
+        return obj.students.count()
+
+Crea calificaciones/serializers.py:
+
+from rest_framework import serializers
+from .models import Assignment, Grade
+from usuarios.serializers import UserListSerializer
+from cursos.serializers import CourseListSerializer
+
+class AssignmentSerializer(serializers.ModelSerializer):
+    course_detail = CourseListSerializer(source='course', read_only=True)
+    grades_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Assignment
+        fields = ['id', 'course', 'course_detail', 'title', 'description', 
+                  'max_score', 'due_date', 'created_at', 'grades_count']
+    
+    def get_grades_count(self, obj):
+        return obj.grades.count()
+
+class GradeSerializer(serializers.ModelSerializer):
+    student_detail = UserListSerializer(source='student', read_only=True)
+    assignment_detail = serializers.StringRelatedField(source='assignment', read_only=True)
+    percentage = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Grade
+        fields = ['id', 'assignment', 'assignment_detail', 'student', 'student_detail',
+                  'score', 'percentage', 'feedback', 'graded_at']
+    
+    def get_percentage(self, obj):
+        if obj.assignment.max_score > 0:
+            return round((obj.score / obj.assignment.max_score) * 100, 2)
+        return 0
+
+class GradeCreateSerializer(serializers.ModelSerializer):
+    """Serializer simplificado para crear calificaciones"""
+    class Meta:
+        model = Grade
+        fields = ['assignment', 'student', 'score', 'feedback']
+
+Crea avisos/serializers.py:
+
+from rest_framework import serializers
+from .models import Announcement
+from usuarios.serializers import UserListSerializer
+from cursos.serializers import CourseListSerializer
+
+class AnnouncementSerializer(serializers.ModelSerializer):
+    author_detail = UserListSerializer(source='author', read_only=True)
+    course_detail = CourseListSerializer(source='course', read_only=True)
+    
+    class Meta:
+        model = Announcement
+        fields = ['id', 'course', 'course_detail', 'author', 'author_detail',
+                  'title', 'content', 'is_pinned', 'created_at', 'updated_at']
+        read_only_fields = ['author', 'created_at', 'updated_at']
+
+
+Crea materiales/serializers.py:
+
+from rest_framework import serializers
+from .models import Material
+from usuarios.serializers import UserListSerializer
+from cursos.serializers import CourseListSerializer
+
+class MaterialSerializer(serializers.ModelSerializer):
+    uploaded_by_detail = UserListSerializer(source='uploaded_by', read_only=True)
+    course_detail = CourseListSerializer(source='course', read_only=True)
+    file_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Material
+        fields = ['id', 'course', 'course_detail', 'title', 'description',
+                  'material_type', 'file', 'file_url', 'url', 'uploaded_by',
+                  'uploaded_by_detail', 'uploaded_at']
+        read_only_fields = ['uploaded_by', 'uploaded_at']
+    
+    def get_file_url(self, obj):
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+        return None
+
+
+2. Crear ViewSets
+
+Crea usuarios/views.py:
+
+from rest_framework import viewsets, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import User
+from .serializers import UserSerializer, UserListSerializer
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['username', 'first_name', 'last_name', 'email']
+    ordering_fields = ['username', 'first_name', 'last_name', 'date_joined']
+    ordering = ['username']
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return UserListSerializer
+        return UserSerializer
+    
+    @action(detail=False, methods=['get'])
+    def teachers(self, request):
+        """Obtener solo profesores"""
+        teachers = User.objects.filter(role='teacher')
+        serializer = UserListSerializer(teachers, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def students(self, request):
+        """Obtener solo estudiantes"""
+        students = User.objects.filter(role='student')
+        serializer = UserListSerializer(students, many=True)
+        return Response(serializer.data)
+
+Crea cursos/views.py:
+
+from rest_framework import viewsets, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import Course
+from .serializers import CourseSerializer, CourseListSerializer
+
+class CourseViewSet(viewsets.ModelViewSet):
+    queryset = Course.objects.all()
+    serializer_class = CourseSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'code', 'description']
+    ordering_fields = ['code', 'name', 'created_at']
+    ordering = ['code']
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return CourseListSerializer
+        return CourseSerializer
+    
+    @action(detail=True, methods=['post'])
+    def enroll_student(self, request, pk=None):
+        """Inscribir un estudiante en el curso"""
+        course = self.get_object()
+        student_id = request.data.get('student_id')
+        
+        try:
+            from usuarios.models import User
+            student = User.objects.get(id=student_id, role='student')
+            course.students.add(student)
+            return Response({'status': 'Estudiante inscrito exitosamente'})
+        except User.DoesNotExist:
+            return Response({'error': 'Estudiante no encontrado'}, status=404)
+    
+    @action(detail=True, methods=['post'])
+    def remove_student(self, request, pk=None):
+        """Remover un estudiante del curso"""
+        course = self.get_object()
+        student_id = request.data.get('student_id')
+        
+        try:
+            from usuarios.models import User
+            student = User.objects.get(id=student_id)
+            course.students.remove(student)
+            return Response({'status': 'Estudiante removido exitosamente'})
+        except User.DoesNotExist:
+            return Response({'error': 'Estudiante no encontrado'}, status=404)
+
+Crea calificaciones/views.py:
+
+from rest_framework import viewsets, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import Assignment, Grade
+from .serializers import AssignmentSerializer, GradeSerializer, GradeCreateSerializer
+
+class AssignmentViewSet(viewsets.ModelViewSet):
+    queryset = Assignment.objects.all()
+    serializer_class = AssignmentSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title', 'description']
+    ordering_fields = ['due_date', 'created_at', 'title']
+    ordering = ['-due_date']
+    
+    def get_queryset(self):
+        queryset = Assignment.objects.all()
+        course_id = self.request.query_params.get('course')
+        if course_id:
+            queryset = queryset.filter(course_id=course_id)
+        return queryset
+
+class GradeViewSet(viewsets.ModelViewSet):
+    queryset = Grade.objects.all()
+    serializer_class = GradeSerializer
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['graded_at', 'score']
+    ordering = ['-graded_at']
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return GradeCreateSerializer
+        return GradeSerializer
+    
+    def get_queryset(self):
+        queryset = Grade.objects.all()
+        student_id = self.request.query_params.get('student')
+        assignment_id = self.request.query_params.get('assignment')
+        
+        if student_id:
+            queryset = queryset.filter(student_id=student_id)
+        if assignment_id:
+            queryset = queryset.filter(assignment_id=assignment_id)
+        
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def my_grades(self, request):
+        """Obtener calificaciones del usuario autenticado"""
+        grades = Grade.objects.filter(student=request.user)
+        serializer = self.get_serializer(grades, many=True)
+        return Response(serializer.data)
+
+Crea avisos/views.py:
+
+from rest_framework import viewsets, filters
+from .models import Announcement
+from .serializers import AnnouncementSerializer
+
+class AnnouncementViewSet(viewsets.ModelViewSet):
+    queryset = Announcement.objects.all()
+    serializer_class = AnnouncementSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title', 'content']
+    ordering_fields = ['created_at', 'is_pinned']
+    ordering = ['-is_pinned', '-created_at']
+    
+    def get_queryset(self):
+        queryset = Announcement.objects.all()
+        course_id = self.request.query_params.get('course')
+        if course_id:
+            queryset = queryset.filter(course_id=course_id)
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+Crea materiales/views.py:
+
+from rest_framework import viewsets, filters
+from .models import Material
+from .serializers import MaterialSerializer
+
+class MaterialViewSet(viewsets.ModelViewSet):
+    queryset = Material.objects.all()
+    serializer_class = MaterialSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title', 'description']
+    ordering_fields = ['uploaded_at', 'title']
+    ordering = ['-uploaded_at']
+    
+    def get_queryset(self):
+        queryset = Material.objects.all()
+        course_id = self.request.query_params.get('course')
+        material_type = self.request.query_params.get('type')
+        
+        if course_id:
+            queryset = queryset.filter(course_id=course_id)
+        if material_type:
+            queryset = queryset.filter(material_type=material_type)
+        
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)
+
+3. Configurar URLs
+
+Crea config/urls.py (reemplaza el contenido):
+
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from rest_framework import routers
+from usuarios.views import UserViewSet
+from cursos.views import CourseViewSet
+from calificaciones.views import AssignmentViewSet, GradeViewSet
+from avisos.views import AnnouncementViewSet
+from materiales.views import MaterialViewSet
+
+# Router de DRF
+router = routers.DefaultRouter()
+router.register(r'users', UserViewSet)
+router.register(r'courses', CourseViewSet)
+router.register(r'assignments', AssignmentViewSet)
+router.register(r'grades', GradeViewSet)
+router.register(r'announcements', AnnouncementViewSet)
+router.register(r'materials', MaterialViewSet)
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/', include(router.urls)),
+    path('api-auth/', include('rest_framework.urls')),
+]
+
+# Servir archivos media en desarrollo
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+
+4. Probar las APIs
+
+python manage.py runserver
+Abre tu navegador en: http://127.0.0.1:8000/api/
+
+Deberías ver la API Root con todos los endpoints disponibles:
+
+/api/users/
+/api/courses/
+/api/assignments/
+/api/grades/
+/api/announcements/
+/api/materials/
+
+
+1. Configurar el proxy para desarrollo
+Abre frontend/package.json y agrega esta línea después de "private": true,:
+json{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "proxy": "http://localhost:8000",
+  ⬆️ AGREGAR ESTA LÍNEA
+  "dependencies": {
+    ...
+Esto permite que React haga peticiones a Django sin problemas de CORS.
+
+2. Crear la estructura de carpetas
+Dentro de frontend/src/, crea estas carpetas:
+bash# Desde: frontend/src/
+mkdir components
+mkdir services
+mkdir pages
+mkdir context
+```
+
+Tu estructura quedará:
+```
+frontend/src/
+├── components/    ← Componentes reutilizables
+├── services/      ← Llamadas a la API
+├── pages/         ← Páginas completas
+├── context/       ← Estado global
+├── App.js
+└── index.js
+
+
+3. Crear el servicio de API
+Crea frontend/src/services/api.js:
+
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: '/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Interceptor para agregar el token de autenticación (lo usaremos después)
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Token ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+export default api;
+
+
+4. Crear servicios específicos
+Crea frontend/src/services/courseService.js:
+
+import api from './api';
+
+export const courseService = {
+  // CRUD Obtener todos los cursos
+  getAll: async () => {
+    const response = await api.get('/courses/');
+    return response.data;
+  },
+
+  // Obtener un curso por ID
+  getById: async (id) => {
+    const response = await api.get(`/courses/${id}/`);
+    return response.data;
+  },
+
+  // Crear un curso
+  create: async (courseData) => {
+    const response = await api.post('/courses/', courseData);
+    return response.data;
+  },
+
+  // Actualizar un curso
+  update: async (id, courseData) => {
+    const response = await api.put(`/courses/${id}/`, courseData);
+    return response.data;
+  },
+
+  // Eliminar un curso
+  delete: async (id) => {
+    const response = await api.delete(`/courses/${id}/`);
+    return response.data;
+  },
+
+  // Inscribir estudiante
+  enrollStudent: async (courseId, studentId) => {
+    const response = await api.post(`/courses/${courseId}/enroll_student/`, {
+      student_id: studentId,
+    });
+    return response.data;
+  },
+};
+
+
+Crea frontend/src/services/userService.js:
+
+import api from './api';
+
+export const userService = {
+  getAll: async () => {
+    const response = await api.get('/users/');
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/users/${id}/`);
+    return response.data;
+  },
+
+  getTeachers: async () => {
+    const response = await api.get('/users/teachers/');
+    return response.data;
+  },
+
+  getStudents: async () => {
+    const response = await api.get('/users/students/');
+    return response.data;
+  },
+
+  create: async (userData) => {
+    const response = await api.post('/users/', userData);
+    return response.data;
+  },
+
+  update: async (id, userData) => {
+    const response = await api.put(`/users/${id}/`, userData);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/users/${id}/`);
+    return response.data;
+  },
+};
+
+
+5. Crear una página de prueba
+
+Crea frontend/src/pages/CoursesPage.js:
+
+import React, { useState, useEffect } from 'react';
+import { courseService } from '../services/courseService';
+
+function CoursesPage() {
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadCourses();
+  }, []);
+
+  const loadCourses = async () => {
+    try {
+      setLoading(true);
+      const data = await courseService.getAll();
+      setCourses(data);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar los cursos: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div style={{ padding: '20px' }}>Cargando cursos...</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>Lista de Cursos</h1>
+      
+      {courses.length === 0 ? (
+        <p>No hay cursos disponibles. Crea algunos desde el admin de Django.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+          {courses.map((course) => (
+            <div
+              key={course.id}
+              style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '15px',
+                backgroundColor: '#f9f9f9',
+              }}
+            >
+              <h3>{course.code} - {course.name}</h3>
+              <p><strong>Profesor:</strong> {course.teacher_name}</p>
+              <p><strong>Estudiantes:</strong> {course.student_count}</p>
+              <p><strong>Estado:</strong> {course.is_active ? '✅ Activo' : '❌ Inactivo'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default CoursesPage;
+
+6. Actualizar App.js
+
+Reemplaza el contenido de frontend/src/App.js:
+
+import React from 'react';
+import CoursesPage from './pages/CoursesPage';
+import './App.css';
+
+function App() {
+  return (
+    <div className="App">
+      <header style={{
+        backgroundColor: '#282c34',
+        padding: '20px',
+        color: 'white',
+        marginBottom: '20px'
+      }}>
+        <h1>Sistema de Gestión Educativa</h1>
+      </header>
+      
+      <CoursesPage />
+    </div>
+  );
+}
+
+export default App;
+7. Probar la conexión
+Asegúrate de tener ambos servidores corriendo:
+Terminal 1 - Backend:
+bashcd backend
+venv\Scripts\activate
+python manage.py runserver
+Terminal 2 - Frontend:
+bashcd frontend
+npm start
+
+1. Instalar React Router (si no lo hiciste)
+bash# En la terminal del frontend
+npm install react-router-dom
+2. Crear más páginas
+Crea frontend/src/pages/StudentsPage.js:
+javascriptimport React, { useState, useEffect } from 'react';
+import { userService } from '../services/userService';
+
+function StudentsPage() {
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadStudents();
+  }, []);
+
+  const loadStudents = async () => {
+    try {
+      setLoading(true);
+      const data = await userService.getStudents();
+      setStudents(data);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar estudiantes: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div style={{ padding: '20px' }}>Cargando estudiantes...</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>Lista de Estudiantes</h1>
+      
+      {students.length === 0 ? (
+        <p>No hay estudiantes registrados.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f0f0f0', textAlign: 'left' }}>
+              <th style={{ padding: '10px', border: '1px solid #ddd' }}>Usuario</th>
+              <th style={{ padding: '10px', border: '1px solid #ddd' }}>Nombre Completo</th>
+              <th style={{ padding: '10px', border: '1px solid #ddd' }}>Email</th>
+              <th style={{ padding: '10px', border: '1px solid #ddd' }}>Rol</th>
+            </tr>
+          </thead>
+          <tbody>
+            {students.map((student) => (
+              <tr key={student.id}>
+                <td style={{ padding: '10px', border: '1px solid #ddd' }}>{student.username}</td>
+                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                  {student.first_name} {student.last_name}
+                </td>
+                <td style={{ padding: '10px', border: '1px solid #ddd' }}>{student.email}</td>
+                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                  <span style={{ 
+                    backgroundColor: '#4CAF50', 
+                    color: 'white', 
+                    padding: '4px 8px', 
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}>
+                    {student.role}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+export default StudentsPage;
+Crea frontend/src/pages/TeachersPage.js:
+javascriptimport React, { useState, useEffect } from 'react';
+import { userService } from '../services/userService';
+
+function TeachersPage() {
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadTeachers();
+  }, []);
+
+  const loadTeachers = async () => {
+    try {
+      setLoading(true);
+      const data = await userService.getTeachers();
+      setTeachers(data);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar profesores: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div style={{ padding: '20px' }}>Cargando profesores...</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>Lista de Profesores</h1>
+      
+      {teachers.length === 0 ? (
+        <p>No hay profesores registrados.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f0f0f0', textAlign: 'left' }}>
+              <th style={{ padding: '10px', border: '1px solid #ddd' }}>Usuario</th>
+              <th style={{ padding: '10px', border: '1px solid #ddd' }}>Nombre Completo</th>
+              <th style={{ padding: '10px', border: '1px solid #ddd' }}>Email</th>
+              <th style={{ padding: '10px', border: '1px solid #ddd' }}>Rol</th>
+            </tr>
+          </thead>
+          <tbody>
+            {teachers.map((teacher) => (
+              <tr key={teacher.id}>
+                <td style={{ padding: '10px', border: '1px solid #ddd' }}>{teacher.username}</td>
+                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                  {teacher.first_name} {teacher.last_name}
+                </td>
+                <td style={{ padding: '10px', border: '1px solid #ddd' }}>{teacher.email}</td>
+                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                  <span style={{ 
+                    backgroundColor: '#2196F3', 
+                    color: 'white', 
+                    padding: '4px 8px', 
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}>
+                    {teacher.role}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+export default TeachersPage;
+Crea frontend/src/pages/HomePage.js:
+javascriptimport React from 'react';
+import { Link } from 'react-router-dom';
+
+function HomePage() {
+  return (
+    <div style={{ padding: '40px', textAlign: 'center' }}>
+      <h1>Bienvenido al Sistema de Gestión Educativa</h1>
+      <p style={{ fontSize: '18px', color: '#666', marginTop: '20px' }}>
+        Gestiona cursos, estudiantes, profesores, calificaciones y materiales en un solo lugar.
+      </p>
+      
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+        gap: '20px',
+        marginTop: '40px',
+        maxWidth: '1000px',
+        margin: '40px auto'
+      }}>
+        <Link to="/courses" style={{ textDecoration: 'none' }}>
+          <div style={{
+            padding: '30px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}>
+            <h2>📚 Cursos</h2>
+            <p>Ver y gestionar cursos</p>
+          </div>
+        </Link>
+
+        <Link to="/students" style={{ textDecoration: 'none' }}>
+          <div style={{
+            padding: '30px',
+            backgroundColor: '#2196F3',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}>
+            <h2>👨‍🎓 Estudiantes</h2>
+            <p>Lista de estudiantes</p>
+          </div>
+        </Link>
+
+        <Link to="/teachers" style={{ textDecoration: 'none' }}>
+          <div style={{
+            padding: '30px',
+            backgroundColor: '#FF9800',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}>
+            <h2>👨‍🏫 Profesores</h2>
+            <p>Lista de profesores</p>
+          </div>
+        </Link>
+
+        <div style={{
+            padding: '30px',
+            backgroundColor: '#9C27B0',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            opacity: 0.6
+          }}>
+            <h2>📝 Calificaciones</h2>
+            <p>Próximamente</p>
+          </div>
+      </div>
+    </div>
+  );
+}
+
+export default HomePage;
+3. Crear componente de Navegación
+Crea frontend/src/components/Navbar.js:
+javascriptimport React from 'react';
+import { Link } from 'react-router-dom';
+
+function Navbar() {
+  return (
+    <nav style={{
+      backgroundColor: '#282c34',
+      padding: '15px 20px',
+      color: 'white',
+      marginBottom: '0'
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        maxWidth: '1200px',
+        margin: '0 auto'
+      }}>
+        <Link to="/" style={{ 
+          color: 'white', 
+          textDecoration: 'none',
+          fontSize: '24px',
+          fontWeight: 'bold'
+        }}>
+          📚 EduPortal
+        </Link>
+        
+        <div style={{ display: 'flex', gap: '20px' }}>
+          <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>Inicio</Link>
+          <Link to="/courses" style={{ color: 'white', textDecoration: 'none' }}>Cursos</Link>
+          <Link to="/students" style={{ color: 'white', textDecoration: 'none' }}>Estudiantes</Link>
+          <Link to="/teachers" style={{ color: 'white', textDecoration: 'none' }}>Profesores</Link>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+export default Navbar;
+4. Actualizar App.js con rutas
+Reemplaza frontend/src/App.js:
+javascriptimport React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import HomePage from './pages/HomePage';
+import CoursesPage from './pages/CoursesPage';
+import StudentsPage from './pages/StudentsPage';
+import TeachersPage from './pages/TeachersPage';
+import './App.css';
+
+function App() {
+  return (
+    <Router>
+      <div className="App">
+        <Navbar />
+        
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/courses" element={<CoursesPage />} />
+          <Route path="/students" element={<StudentsPage />} />
+          <Route path="/teachers" element={<TeachersPage />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
+
+export default App;
+5. Probar
+Guarda todo y el navegador debería actualizarse automáticamente.
+Ahora deberías poder:
+
+✅ Ver la página de inicio con tarjetas
+✅ Navegar entre Cursos, Estudiantes y Profesores
+✅ Ver datos reales desde tu backend Django
