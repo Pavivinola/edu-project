@@ -102,16 +102,22 @@ function HomePage() {
           </div>
         </Link>
 
-        <div style={{
-            padding: '30px',
-            backgroundColor: '#607D8B',
-            color: 'white',
-            borderRadius: '8px',
-            opacity: 0.6
-          }}>
-            <h2>📁 Materiales</h2>
-            <p>Próximamente</p>
-          </div>
+        <Link to="/materials" style={{ textDecoration: 'none' }}>
+          <div style={{
+              padding: '30px',
+              backgroundColor: '#607D8B',
+              color: 'white',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              transition: 'transform 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              <h2>📁 Materiales</h2>
+              <p>Documentos y recursos</p>
+            </div>
+        </Link>
       </div>
     </div>
   );

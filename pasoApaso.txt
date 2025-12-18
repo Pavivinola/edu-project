@@ -2043,3 +2043,868 @@ function HomePage() {
 export default HomePage;
 
 
+1. Crear servicio de materiales
+Crea frontend/src/services/materialService.js:
+
+import api from './api';
+
+export const materialService = {
+  // Obtener todos los materiales
+  getAll: async () => {
+    const response = await api.get('/materials/');
+    return response.data;
+  },
+
+  // Obtener materiales por curso
+  getByCourse: async (courseId) => {
+    const response = await api.get(`/materials/?course=${courseId}`);
+    return response.data;
+  },
+
+  // Obtener materiales por tipo
+  getByType: async (materialType) => {
+    const response = await api.get(`/materials/?type=${materialType}`);
+    return response.data;
+  },
+
+  // Obtener un material
+  getById: async (id) => {
+    const response = await api.get(`/materials/${id}/`);
+    return response.data;
+  },
+
+  // Crear material
+  create: async (materialData) => {
+    // Si hay archivo, usar FormData
+    if (materialData.file) {
+      const formData = new FormData();
+      Object.keys(materialData).forEach(key => {
+        if (materialData[key] !== null && materialData[key] !== undefined) {
+          formData.append(key, materialData[key]);
+        }
+      });
+      const response = await api.post('/materials/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return response.data;
+    }
+    const response = await api.post('/materials/', materialData);
+    return response.data;
+  },
+
+  // Actualizar material
+  update: async (id, materialData) => {
+    if (materialData.file) {
+      const formData = new FormData();
+      Object.keys(materialData).forEach(key => {
+        if (materialData[key] !== null && materialData[key] !== undefined) {
+          formData.append(key, materialData[key]);
+        }
+      });
+      const response = await api.put(`/materials/${id}/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return response.data;
+    }
+    const response = await api.put(`/materials/${id}/`, materialData);
+    return response.data;
+  },
+
+  // Eliminar material
+  delete: async (id) => {
+    const response = await api.delete(`/materials/${id}/`);
+    return response.data;
+  },
+};
+
+
+2. Crear página de materiales
+Crea frontend/src/pages/MaterialsPage.js:
+
+
+import React, { useState, useEffect } from 'react';
+import { materialService } from '../services/materialService';
+import { courseService } from '../services/courseService';
+
+function MaterialsPage() {
+  const [materials, setMaterials] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const materialTypes = [
+    { value: '', label: 'Todos los tipos' },
+    { value: 'pdf', label: '📄 PDF' },
+    { value: 'video', label: '🎥 Video' },
+    { value: 'link', label: '🔗 Enlace' },
+    { value: 'document', label: '📝 Documento' },
+    { value: 'presentation', label: '📊 Presentación' },
+    { value: 'other', label: '📎 Otro' },
+  ];
+
+  useEffect(() => {
+    loadCourses();
+    loadMaterials();
+  }, []);
+
+  useEffect(() => {
+    filterMaterials();
+  }, [selectedCourse, selectedType]);
+
+  const loadCourses = async () => {
+    try {
+      const data = await courseService.getAll();
+      setCourses(data);
+    } catch (err) {
+      console.error('Error al cargar cursos:', err);
+    }
+  };
+
+  const loadMaterials = async () => {
+    try {
+      setLoading(true);
+      const data = await materialService.getAll();
+      setMaterials(data);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar materiales: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterMaterials = async () => {
+    try {
+      setLoading(true);
+      let data;
+      
+      if (selectedCourse && selectedType) {
+        // Filtrar por ambos en el cliente
+        const allMaterials = await materialService.getByCourse(selectedCourse);
+        data = allMaterials.filter(m => m.material_type === selectedType);
+      } else if (selectedCourse) {
+        data = await materialService.getByCourse(selectedCourse);
+      } else if (selectedType) {
+        data = await materialService.getByType(selectedType);
+      } else {
+        data = await materialService.getAll();
+      }
+      
+      setMaterials(data);
+      setError(null);
+    } catch (err) {
+      setError('Error al filtrar materiales: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTypeIcon = (type) => {
+    const icons = {
+      pdf: '📄',
+      video: '🎥',
+      link: '🔗',
+      document: '📝',
+      presentation: '📊',
+      other: '📎'
+    };
+    return icons[type] || '📎';
+  };
+
+  const getTypeColor = (type) => {
+    const colors = {
+      pdf: '#E53935',
+      video: '#1E88E5',
+      link: '#43A047',
+      document: '#FB8C00',
+      presentation: '#8E24AA',
+      other: '#757575'
+    };
+    return colors[type] || '#757575';
+  };
+
+  if (loading) return <div style={{ padding: '20px' }}>Cargando materiales...</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>Materiales de Clase</h1>
+
+      {/* Filtros */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '20px', 
+        marginBottom: '30px',
+        padding: '20px',
+        backgroundColor: '#f5f5f5',
+        borderRadius: '8px'
+      }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+            Filtrar por curso:
+          </label>
+          <select 
+            value={selectedCourse}
+            onChange={(e) => setSelectedCourse(e.target.value)}
+            style={{ 
+              width: '100%',
+              padding: '10px', 
+              borderRadius: '4px', 
+              border: '1px solid #ddd',
+              fontSize: '14px'
+            }}
+          >
+            <option value="">Todos los cursos</option>
+            {courses.map(course => (
+              <option key={course.id} value={course.id}>
+                {course.code} - {course.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+            Filtrar por tipo:
+          </label>
+          <select 
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value)}
+            style={{ 
+              width: '100%',
+              padding: '10px', 
+              borderRadius: '4px', 
+              border: '1px solid #ddd',
+              fontSize: '14px'
+            }}
+          >
+            {materialTypes.map(type => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Lista de materiales */}
+      {materials.length === 0 ? (
+        <p>No hay materiales disponibles. Sube algunos desde el admin de Django.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '15px' }}>
+          {materials.map((material) => (
+            <div
+              key={material.id}
+              style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '20px',
+                backgroundColor: '#fff',
+                display: 'flex',
+                alignItems: 'start',
+                gap: '20px',
+                transition: 'box-shadow 0.2s',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+            >
+              {/* Icono del tipo */}
+              <div style={{
+                fontSize: '48px',
+                backgroundColor: getTypeColor(material.material_type) + '20',
+                padding: '15px',
+                borderRadius: '8px',
+                minWidth: '80px',
+                textAlign: 'center'
+              }}>
+                {getTypeIcon(material.material_type)}
+              </div>
+
+              {/* Información del material */}
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 10px 0' }}>{material.title}</h3>
+                
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '15px', 
+                  fontSize: '13px', 
+                  color: '#666',
+                  marginBottom: '10px'
+                }}>
+                  <span><strong>Curso:</strong> {material.course_detail?.code}</span>
+                  <span><strong>Tipo:</strong> {material.material_type.toUpperCase()}</span>
+                  <span><strong>Subido por:</strong> {material.uploaded_by_detail?.first_name} {material.uploaded_by_detail?.last_name}</span>
+                  <span><strong>Fecha:</strong> {new Date(material.uploaded_at).toLocaleDateString()}</span>
+                </div>
+
+                {material.description && (
+                  <p style={{ 
+                    margin: '10px 0', 
+                    color: '#555',
+                    fontSize: '14px'
+                  }}>
+                    {material.description}
+                  </p>
+                )}
+
+                {/* Enlaces de descarga/visualización */}
+                <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+                  {material.file_url && (
+                    
+                      href={material.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: getTypeColor(material.material_type),
+                        color: 'white',
+                        textDecoration: 'none',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      📥 Descargar/Ver archivo
+                    </a>
+                  )}
+                  
+                  {material.url && (
+                    
+                      href={material.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#43A047',
+                        color: 'white',
+                        textDecoration: 'none',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      🔗 Abrir enlace
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default MaterialsPage;
+
+OPCIÓN 2: Vista de Detalle del Curso 🔍
+Crea frontend/src/pages/CourseDetailPage.js:
+
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { courseService } from '../services/courseService';
+import { assignmentService } from '../services/gradeService';
+import { announcementService } from '../services/announcementService';
+import { materialService } from '../services/materialService';
+
+function CourseDetailPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [course, setCourse] = useState(null);
+  const [assignments, setAssignments] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [activeTab, setActiveTab] = useState('info');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadCourseData();
+  }, [id]);
+
+  const loadCourseData = async () => {
+    try {
+      setLoading(true);
+      const [courseData, assignmentsData, announcementsData, materialsData] = await Promise.all([
+        courseService.getById(id),
+        assignmentService.getByCourse(id),
+        announcementService.getByCourse(id),
+        materialService.getByCourse(id)
+      ]);
+      
+      setCourse(courseData);
+      setAssignments(assignmentsData);
+      setAnnouncements(announcementsData);
+      setMaterials(materialsData);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar el curso: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div style={{ padding: '20px' }}>Cargando curso...</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+  if (!course) return <div style={{ padding: '20px' }}>Curso no encontrado</div>;
+
+  const tabs = [
+    { id: 'info', label: '📋 Información', count: null },
+    { id: 'students', label: '👨‍🎓 Estudiantes', count: course.students_detail?.length || 0 },
+    { id: 'assignments', label: '📝 Tareas', count: assignments.length },
+    { id: 'announcements', label: '📢 Avisos', count: announcements.length },
+    { id: 'materials', label: '📁 Materiales', count: materials.length },
+  ];
+
+  return (
+    <div style={{ padding: '20px' }}>
+      {/* Header del curso */}
+      <div style={{
+        backgroundColor: '#4CAF50',
+        color: 'white',
+        padding: '30px',
+        borderRadius: '8px',
+        marginBottom: '20px'
+      }}>
+        <button
+          onClick={() => navigate('/courses')}
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            marginBottom: '15px'
+          }}
+        >
+          ← Volver a cursos
+        </button>
+        
+        <h1 style={{ margin: '10px 0' }}>{course.code} - {course.name}</h1>
+        <p style={{ margin: '10px 0', fontSize: '16px', opacity: 0.9 }}>
+          👨‍🏫 Profesor: {course.teacher_detail?.first_name} {course.teacher_detail?.last_name}
+        </p>
+        <p style={{ margin: '5px 0', opacity: 0.8 }}>
+          {course.is_active ? '✅ Activo' : '❌ Inactivo'}
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{
+        display: 'flex',
+        gap: '10px',
+        borderBottom: '2px solid #ddd',
+        marginBottom: '20px',
+        flexWrap: 'wrap'
+      }}>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              backgroundColor: activeTab === tab.id ? '#4CAF50' : 'transparent',
+              color: activeTab === tab.id ? 'white' : '#666',
+              fontWeight: activeTab === tab.id ? 'bold' : 'normal',
+              cursor: 'pointer',
+              borderRadius: '8px 8px 0 0',
+              fontSize: '14px',
+              transition: 'all 0.2s'
+            }}
+          >
+            {tab.label}
+            {tab.count !== null && (
+              <span style={{
+                marginLeft: '8px',
+                backgroundColor: activeTab === tab.id ? 'rgba(255,255,255,0.3)' : '#e0e0e0',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                fontSize: '12px'
+              }}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Contenido de tabs */}
+      <div style={{ backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px', minHeight: '400px' }}>
+        
+        {/* Tab: Información */}
+        {activeTab === 'info' && (
+          <div>
+            <h2>Descripción del Curso</h2>
+            <p style={{ lineHeight: '1.6', fontSize: '15px', whiteSpace: 'pre-wrap' }}>
+              {course.description}
+            </p>
+            
+            <div style={{ marginTop: '30px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#4CAF50' }}>👨‍🎓 Estudiantes</h3>
+                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{course.student_count}</p>
+              </div>
+              
+              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#2196F3' }}>📝 Tareas</h3>
+                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{assignments.length}</p>
+              </div>
+              
+              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#FF9800' }}>📢 Avisos</h3>
+                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{announcements.length}</p>
+              </div>
+              
+              <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#9C27B0' }}>📁 Materiales</h3>
+                <p style={{ fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{materials.length}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Estudiantes */}
+        {activeTab === 'students' && (
+          <div>
+            <h2>Estudiantes Inscritos</h2>
+            {course.students_detail?.length === 0 ? (
+              <p>No hay estudiantes inscritos en este curso.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '10px', marginTop: '20px' }}>
+                {course.students_detail?.map((student, index) => (
+                  <div
+                    key={student.id}
+                    style={{
+                      backgroundColor: 'white',
+                      padding: '15px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '15px'
+                    }}
+                  >
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      backgroundColor: '#4CAF50',
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 'bold'
+                    }}>
+                      {index + 1}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 'bold' }}>
+                        {student.first_name} {student.last_name}
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#666' }}>
+                        {student.email}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Tareas */}
+        {activeTab === 'assignments' && (
+          <div>
+            <h2>Tareas del Curso</h2>
+            {assignments.length === 0 ? (
+              <p>No hay tareas creadas para este curso.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '15px', marginTop: '20px' }}>
+                {assignments.map(assignment => (
+                  <div
+                    key={assignment.id}
+                    style={{
+                      backgroundColor: 'white',
+                      padding: '20px',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    <h3 style={{ margin: '0 0 10px 0' }}>{assignment.title}</h3>
+                    <p style={{ color: '#666', fontSize: '14px' }}>{assignment.description}</p>
+                    <div style={{ display: 'flex', gap: '20px', marginTop: '10px', fontSize: '13px' }}>
+                      <span><strong>Puntaje máximo:</strong> {assignment.max_score}</span>
+                      <span><strong>Fecha límite:</strong> {new Date(assignment.due_date).toLocaleDateString()}</span>
+                      <span><strong>Calificaciones:</strong> {assignment.grades_count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Avisos */}
+        {activeTab === 'announcements' && (
+          <div>
+            <h2>Avisos del Curso</h2>
+            {announcements.length === 0 ? (
+              <p>No hay avisos publicados para este curso.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '15px', marginTop: '20px' }}>
+                {announcements.map(announcement => (
+                  <div
+                    key={announcement.id}
+                    style={{
+                      backgroundColor: 'white',
+                      padding: '20px',
+                      borderRadius: '8px',
+                      border: announcement.is_pinned ? '2px solid #FF9800' : 'none'
+                    }}
+                  >
+                    {announcement.is_pinned && (
+                      <span style={{
+                        backgroundColor: '#FF9800',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                      }}>
+                        📌 FIJADO
+                      </span>
+                    )}
+                    <h3 style={{ margin: '10px 0' }}>{announcement.title}</h3>
+                    <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
+                      {announcement.content}
+                    </p>
+                    <div style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>
+                      Por {announcement.author_detail?.first_name} {announcement.author_detail?.last_name} - {new Date(announcement.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Materiales */}
+        {activeTab === 'materials' && (
+          <div>
+            <h2>Materiales del Curso</h2>
+            {materials.length === 0 ? (
+              <p>No hay materiales subidos para este curso.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '15px', marginTop: '20px' }}>
+                {materials.map(material => (
+                  <div
+                    key={material.id}
+                    style={{
+                      backgroundColor: 'white',
+                      padding: '20px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      gap: '15px',
+                      alignItems: 'start'
+                    }}
+                  >
+                    <div style={{ fontSize: '32px' }}>
+                      {material.material_type === 'pdf' && '📄'}
+                      {material.material_type === 'video' && '🎥'}
+                      {material.material_type === 'link' && '🔗'}
+                      {material.material_type === 'document' && '📝'}
+                      {material.material_type === 'presentation' && '📊'}
+                      {material.material_type === 'other' && '📎'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ margin: '0 0 5px 0' }}>{material.title}</h3>
+                      {material.description && (
+                        <p style={{ color: '#666', fontSize: '14px' }}>{material.description}</p>
+                      )}
+                      <div style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>
+                        Subido el {new Date(material.uploaded_at).toLocaleDateString()}
+                      </div>
+                      <div style={{ marginTop: '10px' }}>
+                        {material.file_url && (
+                          
+                            href={material.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              padding: '8px 16px',
+                              backgroundColor: '#4CAF50',
+                              color: 'white',
+                              textDecoration: 'none',
+                              borderRadius: '4px',
+                              fontSize: '14px',
+                              marginRight: '10px'
+                            }}
+                          >
+                            📥 Descargar
+                          </a>
+                        )}
+                        {material.url && (
+                          
+                            href={material.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              padding: '8px 16px',
+                              backgroundColor: '#2196F3',
+                              color: 'white',
+                              textDecoration: 'none',
+                              borderRadius: '4px',
+                              fontSize: '14px'
+                            }}
+                          >
+                            🔗 Abrir enlace
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default CourseDetailPage;
+
+Actualizar archivos existentes
+
+1. Actualizar CoursesPage.js para agregar botón "Ver detalles"
+
+Modifica frontend/src/pages/CoursesPage.js - agrega esto dentro del map de courses:
+
+// Dentro del div de cada curso, agrega al final:
+<button
+  onClick={() => navigate(`/courses/${course.id}`)}
+  style={{
+    marginTop: '10px',
+    padding: '8px 16px',
+    backgroundColor: '#4CAF50',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px'
+  }}
+>
+  Ver detalles →
+</button>
+Y agrega el import de navigate al inicio:
+javascriptimport { useNavigate } from 'react-router-dom';
+
+function CoursesPage() {
+  const navigate = useNavigate();
+  // ... resto del código
+2. Actualizar App.js con todas las rutas
+Reemplaza frontend/src/App.js:
+javascriptimport React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import HomePage from './pages/HomePage';
+import CoursesPage from './pages/CoursesPage';
+import CourseDetailPage from './pages/CourseDetailPage';
+import StudentsPage from './pages/StudentsPage';
+import TeachersPage from './pages/TeachersPage';
+import GradesPage from './pages/GradesPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
+import MaterialsPage from './pages/MaterialsPage';
+import './App.css';
+
+function App() {
+  return (
+    <Router>
+      <div className="App">
+        <Navbar />
+        
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/courses" element={<CoursesPage />} />
+          <Route path="/courses/:id" element={<CourseDetailPage />} />
+          <Route path="/students" element={<StudentsPage />} />
+          <Route path="/teachers" element={<TeachersPage />} />
+          <Route path="/grades" element={<GradesPage />} />
+          <Route path="/announcements" element={<AnnouncementsPage />} />
+          <Route path="/materials" element={<MaterialsPage />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
+
+export default App;
+3. Actualizar Navbar.js
+javascriptimport React from 'react';
+import { Link } from 'react-router-dom';
+
+function Navbar() {
+  return (
+    <nav style={{
+      backgroundColor: '#282c34',
+      padding: '15px 20px',
+      color: 'white',
+      marginBottom: '0'
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        maxWidth: '1200px',
+        margin: '0 auto'
+      }}>
+        <Link to="/" style={{ 
+          color: 'white', 
+          textDecoration: 'none',
+          fontSize: '24px',
+          fontWeight: 'bold'
+        }}>
+          📚 EduPortal
+        </Link>
+        
+        <div style={{ display: 'flex', gap: '20px' }}>
+          <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>Inicio</Link>
+          <Link to="/courses" style={{ color: 'white', textDecoration: 'none' }}>Cursos</Link>
+          <Link to="/students" style={{ color: 'white', textDecoration: 'none' }}>Estudiantes</Link>
+          <Link to="/teachers" style={{ color: 'white', textDecoration: 'none' }}>Profesores</Link>
+          <Link to="/grades" style={{ color: 'white', textDecoration: 'none' }}>Calificaciones</Link>
+          <Link to="/announcements" style={{ color: 'white', textDecoration: 'none' }}>Avisos</Link>
+          <Link to="/materials" style={{ color: 'white', textDecoration: 'none' }}>Materiales</Link>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+export default Navbar;
+4. Actualizar HomePage.js para incluir materiales
+Cambia el div de materiales en HomePage.js:
+javascript<Link to="/materials" style={{ textDecoration: 'none' }}>
+  <div style={{
+      padding: '30px',
+      backgroundColor: '#607D8B',
+      color: 'white',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      transition: 'transform 0.2s'
+    }}
+    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+    >
+      <h2>📁 Materiales</h2>
+      <p>Documentos y recursos</p>
+    </div>
+</Link>

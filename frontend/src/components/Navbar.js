@@ -32,6 +32,7 @@ function Navbar() {
           <Link to="/teachers" style={{ color: 'white', textDecoration: 'none' }}>Profesores</Link>
           <Link to="/grades" style={{ color: 'white', textDecoration: 'none' }}>Calificaciones</Link>
           <Link to="/announcements" style={{ color: 'white', textDecoration: 'none' }}>Avisos</Link>
+          <Link to="/materials" style={{ color: 'white', textDecoration: 'none' }}>Materiales</Link>
         </div>
       </div>
     </nav>

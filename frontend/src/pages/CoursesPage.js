@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { courseService } from '../services/courseService';
 
 function CoursesPage() {
+  const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -49,6 +51,22 @@ function CoursesPage() {
               <p><strong>Profesor:</strong> {course.teacher_name}</p>
               <p><strong>Estudiantes:</strong> {course.student_count}</p>
               <p><strong>Estado:</strong> {course.is_active ? '✅ Activo' : '❌ Inactivo'}</p>
+              
+              <button
+                onClick={() => navigate(`/courses/${course.id}`)}
+                style={{
+                  marginTop: '10px',
+                  padding: '8px 16px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Ver detalles →
+              </button>
             </div>
           ))}
         </div>
