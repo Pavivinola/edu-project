@@ -1041,22 +1041,28 @@ function App() {
 }
 
 export default App;
+
 7. Probar la conexión
+
 Asegúrate de tener ambos servidores corriendo:
+
 Terminal 1 - Backend:
-bashcd backend
+cd backend
 venv\Scripts\activate
 python manage.py runserver
+
 Terminal 2 - Frontend:
-bashcd frontend
+cd frontend
 npm start
 
 1. Instalar React Router (si no lo hiciste)
 bash# En la terminal del frontend
 npm install react-router-dom
+
 2. Crear más páginas
 Crea frontend/src/pages/StudentsPage.js:
-javascriptimport React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { userService } from '../services/userService';
 
 function StudentsPage() {
@@ -1130,8 +1136,10 @@ function StudentsPage() {
 }
 
 export default StudentsPage;
+
 Crea frontend/src/pages/TeachersPage.js:
-javascriptimport React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { userService } from '../services/userService';
 
 function TeachersPage() {
@@ -1205,8 +1213,10 @@ function TeachersPage() {
 }
 
 export default TeachersPage;
+
 Crea frontend/src/pages/HomePage.js:
-javascriptimport React from 'react';
+
+import React from 'react';
 import { Link } from 'react-router-dom';
 
 function HomePage() {
@@ -1284,9 +1294,11 @@ function HomePage() {
 }
 
 export default HomePage;
+
 3. Crear componente de Navegación
 Crea frontend/src/components/Navbar.js:
-javascriptimport React from 'react';
+
+import React from 'react';
 import { Link } from 'react-router-dom';
 
 function Navbar() {
@@ -1325,9 +1337,11 @@ function Navbar() {
 }
 
 export default Navbar;
+
 4. Actualizar App.js con rutas
 Reemplaza frontend/src/App.js:
-javascriptimport React from 'react';
+
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
@@ -1354,6 +1368,7 @@ function App() {
 }
 
 export default App;
+
 5. Probar
 Guarda todo y el navegador debería actualizarse automáticamente.
 Ahora deberías poder:
@@ -1361,3 +1376,670 @@ Ahora deberías poder:
 ✅ Ver la página de inicio con tarjetas
 ✅ Navegar entre Cursos, Estudiantes y Profesores
 ✅ Ver datos reales desde tu backend Django
+
+Crear servicios faltantes
+Crea frontend/src/services/gradeService.js:
+
+import api from './api';
+
+export const gradeService = {
+  // Obtener todas las calificaciones
+  getAll: async () => {
+    const response = await api.get('/grades/');
+    return response.data;
+  },
+
+  // Obtener calificaciones por estudiante
+  getByStudent: async (studentId) => {
+    const response = await api.get(`/grades/?student=${studentId}`);
+    return response.data;
+  },
+
+  // Obtener calificaciones por tarea
+  getByAssignment: async (assignmentId) => {
+    const response = await api.get(`/grades/?assignment=${assignmentId}`);
+    return response.data;
+  },
+
+  // Crear calificación
+  create: async (gradeData) => {
+    const response = await api.post('/grades/', gradeData);
+    return response.data;
+  },
+
+  // Actualizar calificación
+  update: async (id, gradeData) => {
+    const response = await api.put(`/grades/${id}/`, gradeData);
+    return response.data;
+  },
+
+  // Eliminar calificación
+  delete: async (id) => {
+    const response = await api.delete(`/grades/${id}/`);
+    return response.data;
+  },
+};
+
+export const assignmentService = {
+  // Obtener todas las tareas
+  getAll: async () => {
+    const response = await api.get('/assignments/');
+    return response.data;
+  },
+
+  // Obtener tareas por curso
+  getByCourse: async (courseId) => {
+    const response = await api.get(`/assignments/?course=${courseId}`);
+    return response.data;
+  },
+
+  // Obtener una tarea
+  getById: async (id) => {
+    const response = await api.get(`/assignments/${id}/`);
+    return response.data;
+  },
+
+  // Crear tarea
+  create: async (assignmentData) => {
+    const response = await api.post('/assignments/', assignmentData);
+    return response.data;
+  },
+
+  // Actualizar tarea
+  update: async (id, assignmentData) => {
+    const response = await api.put(`/assignments/${id}/`, assignmentData);
+    return response.data;
+  },
+
+  // Eliminar tarea
+  delete: async (id) => {
+    const response = await api.delete(`/assignments/${id}/`);
+    return response.data;
+  },
+};
+
+
+Crea frontend/src/services/announcementService.js:
+
+import api from './api';
+
+export const announcementService = {
+  // Obtener todos los avisos
+  getAll: async () => {
+    const response = await api.get('/announcements/');
+    return response.data;
+  },
+
+  // Obtener avisos por curso
+  getByCourse: async (courseId) => {
+    const response = await api.get(`/announcements/?course=${courseId}`);
+    return response.data;
+  },
+
+  // Obtener un aviso
+  getById: async (id) => {
+    const response = await api.get(`/announcements/${id}/`);
+    return response.data;
+  },
+
+  // Crear aviso
+  create: async (announcementData) => {
+    const response = await api.post('/announcements/', announcementData);
+    return response.data;
+  },
+
+  // Actualizar aviso
+  update: async (id, announcementData) => {
+    const response = await api.put(`/announcements/${id}/`, announcementData);
+    return response.data;
+  },
+
+  // Eliminar aviso
+  delete: async (id) => {
+    const response = await api.delete(`/announcements/${id}/`);
+    return response.data;
+  },
+};
+
+
+2. Crear página de Calificaciones
+Crea frontend/src/pages/GradesPage.js:
+
+import React, { useState, useEffect } from 'react';
+import { gradeService, assignmentService } from '../services/gradeService';
+import { courseService } from '../services/courseService';
+
+function GradesPage() {
+  const [assignments, setAssignments] = useState([]);
+  const [grades, setGrades] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadCourses();
+    loadAssignments();
+    loadGrades();
+  }, []);
+
+  useEffect(() => {
+    if (selectedCourse) {
+      loadAssignmentsByCourse(selectedCourse);
+    } else {
+      loadAssignments();
+    }
+  }, [selectedCourse]);
+
+  const loadCourses = async () => {
+    try {
+      const data = await courseService.getAll();
+      setCourses(data);
+    } catch (err) {
+      console.error('Error al cargar cursos:', err);
+    }
+  };
+
+  const loadAssignments = async () => {
+    try {
+      setLoading(true);
+      const data = await assignmentService.getAll();
+      setAssignments(data);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar tareas: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAssignmentsByCourse = async (courseId) => {
+    try {
+      setLoading(true);
+      const data = await assignmentService.getByCourse(courseId);
+      setAssignments(data);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar tareas: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadGrades = async () => {
+    try {
+      const data = await gradeService.getAll();
+      setGrades(data);
+    } catch (err) {
+      console.error('Error al cargar calificaciones:', err);
+    }
+  };
+
+  const getGradesForAssignment = (assignmentId) => {
+    return grades.filter(grade => grade.assignment === assignmentId);
+  };
+
+  if (loading) return <div style={{ padding: '20px' }}>Cargando tareas y calificaciones...</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h1>Tareas y Calificaciones</h1>
+        
+        <div>
+          <label style={{ marginRight: '10px' }}>Filtrar por curso:</label>
+          <select 
+            value={selectedCourse}
+            onChange={(e) => setSelectedCourse(e.target.value)}
+            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+          >
+            <option value="">Todos los cursos</option>
+            {courses.map(course => (
+              <option key={course.id} value={course.id}>
+                {course.code} - {course.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {assignments.length === 0 ? (
+        <p>No hay tareas disponibles. Crea algunas desde el admin de Django.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '20px' }}>
+          {assignments.map((assignment) => {
+            const assignmentGrades = getGradesForAssignment(assignment.id);
+            const avgScore = assignmentGrades.length > 0
+              ? (assignmentGrades.reduce((sum, g) => sum + parseFloat(g.score), 0) / assignmentGrades.length).toFixed(2)
+              : 'N/A';
+
+            return (
+              <div
+                key={assignment.id}
+                style={{
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
+                  padding: '20px',
+                  backgroundColor: '#f9f9f9',
+                }}
+              >
+                <div style={{ marginBottom: '15px' }}>
+                  <h3 style={{ margin: '0 0 10px 0' }}>{assignment.title}</h3>
+                  <div style={{ display: 'flex', gap: '20px', fontSize: '14px', color: '#666' }}>
+                    <span><strong>Curso:</strong> {assignment.course_detail?.code}</span>
+                    <span><strong>Puntaje máximo:</strong> {assignment.max_score}</span>
+                    <span><strong>Fecha límite:</strong> {new Date(assignment.due_date).toLocaleDateString()}</span>
+                    <span><strong>Calificaciones:</strong> {assignmentGrades.length}</span>
+                    <span><strong>Promedio:</strong> {avgScore}</span>
+                  </div>
+                </div>
+
+                {assignment.description && (
+                  <p style={{ margin: '10px 0', color: '#555' }}>{assignment.description}</p>
+                )}
+
+                {assignmentGrades.length > 0 && (
+                  <div style={{ marginTop: '15px' }}>
+                    <h4 style={{ fontSize: '16px', marginBottom: '10px' }}>Calificaciones:</h4>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#e0e0e0' }}>
+                          <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ccc' }}>Estudiante</th>
+                          <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Nota</th>
+                          <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Porcentaje</th>
+                          <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ccc' }}>Retroalimentación</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {assignmentGrades.map((grade) => (
+                          <tr key={grade.id}>
+                            <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                              {grade.student_detail?.first_name} {grade.student_detail?.last_name}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd', fontWeight: 'bold' }}>
+                              {grade.score}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                              {grade.percentage}%
+                            </td>
+                            <td style={{ padding: '8px', border: '1px solid #ddd', fontSize: '13px' }}>
+                              {grade.feedback || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default GradesPage;
+
+3. Crear página de Avisos
+Crea frontend/src/pages/AnnouncementsPage.js:
+
+import React, { useState, useEffect } from 'react';
+import { announcementService } from '../services/announcementService';
+import { courseService } from '../services/courseService';
+
+function AnnouncementsPage() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadCourses();
+    loadAnnouncements();
+  }, []);
+
+  useEffect(() => {
+    if (selectedCourse) {
+      loadAnnouncementsByCourse(selectedCourse);
+    } else {
+      loadAnnouncements();
+    }
+  }, [selectedCourse]);
+
+  const loadCourses = async () => {
+    try {
+      const data = await courseService.getAll();
+      setCourses(data);
+    } catch (err) {
+      console.error('Error al cargar cursos:', err);
+    }
+  };
+
+  const loadAnnouncements = async () => {
+    try {
+      setLoading(true);
+      const data = await announcementService.getAll();
+      setAnnouncements(data);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar avisos: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAnnouncementsByCourse = async (courseId) => {
+    try {
+      setLoading(true);
+      const data = await announcementService.getByCourse(courseId);
+      setAnnouncements(data);
+      setError(null);
+    } catch (err) {
+      setError('Error al cargar avisos: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div style={{ padding: '20px' }}>Cargando avisos...</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h1>Avisos y Anuncios</h1>
+        
+        <div>
+          <label style={{ marginRight: '10px' }}>Filtrar por curso:</label>
+          <select 
+            value={selectedCourse}
+            onChange={(e) => setSelectedCourse(e.target.value)}
+            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+          >
+            <option value="">Todos los cursos</option>
+            {courses.map(course => (
+              <option key={course.id} value={course.id}>
+                {course.code} - {course.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {announcements.length === 0 ? (
+        <p>No hay avisos disponibles. Crea algunos desde el admin de Django.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '20px' }}>
+          {announcements.map((announcement) => (
+            <div
+              key={announcement.id}
+              style={{
+                border: announcement.is_pinned ? '2px solid #FF9800' : '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '20px',
+                backgroundColor: announcement.is_pinned ? '#FFF3E0' : '#f9f9f9',
+                position: 'relative'
+              }}
+            >
+              {announcement.is_pinned && (
+                <div style={{
+                  position: 'absolute',
+                  top: '10px',
+                  right: '10px',
+                  backgroundColor: '#FF9800',
+                  color: 'white',
+                  padding: '4px 12px',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}>
+                  📌 FIJADO
+                </div>
+              )}
+
+              <h3 style={{ margin: '0 0 10px 0', paddingRight: '100px' }}>{announcement.title}</h3>
+              
+              <div style={{ display: 'flex', gap: '15px', fontSize: '13px', color: '#666', marginBottom: '15px' }}>
+                <span><strong>Curso:</strong> {announcement.course_detail?.code}</span>
+                <span><strong>Autor:</strong> {announcement.author_detail?.first_name} {announcement.author_detail?.last_name}</span>
+                <span><strong>Fecha:</strong> {new Date(announcement.created_at).toLocaleDateString()}</span>
+              </div>
+
+              <div style={{ 
+                backgroundColor: 'white', 
+                padding: '15px', 
+                borderRadius: '4px',
+                lineHeight: '1.6',
+                whiteSpace: 'pre-wrap'
+              }}>
+                {announcement.content}
+              </div>
+
+              {announcement.updated_at !== announcement.created_at && (
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '10px', fontStyle: 'italic' }}>
+                  Última actualización: {new Date(announcement.updated_at).toLocaleString()}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default AnnouncementsPage;
+
+4. Actualizar App.js con las nuevas rutas
+Reemplaza frontend/src/App.js:
+
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import HomePage from './pages/HomePage';
+import CoursesPage from './pages/CoursesPage';
+import StudentsPage from './pages/StudentsPage';
+import TeachersPage from './pages/TeachersPage';
+import GradesPage from './pages/GradesPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
+import './App.css';
+
+function App() {
+  return (
+    <Router>
+      <div className="App">
+        <Navbar />
+        
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/courses" element={<CoursesPage />} />
+          <Route path="/students" element={<StudentsPage />} />
+          <Route path="/teachers" element={<TeachersPage />} />
+          <Route path="/grades" element={<GradesPage />} />
+          <Route path="/announcements" element={<AnnouncementsPage />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
+
+export default App;
+
+5. Actualizar Navbar
+Actualiza frontend/src/components/Navbar.js:
+
+import React from 'react';
+import { Link } from 'react-router-dom';
+
+function Navbar() {
+  return (
+    <nav style={{
+      backgroundColor: '#282c34',
+      padding: '15px 20px',
+      color: 'white',
+      marginBottom: '0'
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        maxWidth: '1200px',
+        margin: '0 auto'
+      }}>
+        <Link to="/" style={{ 
+          color: 'white', 
+          textDecoration: 'none',
+          fontSize: '24px',
+          fontWeight: 'bold'
+        }}>
+          📚 EduPortal
+        </Link>
+        
+        <div style={{ display: 'flex', gap: '20px' }}>
+          <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>Inicio</Link>
+          <Link to="/courses" style={{ color: 'white', textDecoration: 'none' }}>Cursos</Link>
+          <Link to="/students" style={{ color: 'white', textDecoration: 'none' }}>Estudiantes</Link>
+          <Link to="/teachers" style={{ color: 'white', textDecoration: 'none' }}>Profesores</Link>
+          <Link to="/grades" style={{ color: 'white', textDecoration: 'none' }}>Calificaciones</Link>
+          <Link to="/announcements" style={{ color: 'white', textDecoration: 'none' }}>Avisos</Link>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+export default Navbar;
+
+6. Actualizar HomePage con las nuevas tarjetas
+Actualiza frontend/src/pages/HomePage.js:
+
+import React from 'react';
+import { Link } from 'react-router-dom';
+
+function HomePage() {
+  return (
+    <div style={{ padding: '40px', textAlign: 'center' }}>
+      <h1>Bienvenido al Sistema de Gestión Educativa</h1>
+      <p style={{ fontSize: '18px', color: '#666', marginTop: '20px' }}>
+        Gestiona cursos, estudiantes, profesores, calificaciones y materiales en un solo lugar.
+      </p>
+      
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+        gap: '20px',
+        marginTop: '40px',
+        maxWidth: '1200px',
+        margin: '40px auto'
+      }}>
+        <Link to="/courses" style={{ textDecoration: 'none' }}>
+          <div style={{
+            padding: '30px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <h2>📚 Cursos</h2>
+            <p>Ver y gestionar cursos</p>
+          </div>
+        </Link>
+
+        <Link to="/students" style={{ textDecoration: 'none' }}>
+          <div style={{
+            padding: '30px',
+            backgroundColor: '#2196F3',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <h2>👨‍🎓 Estudiantes</h2>
+            <p>Lista de estudiantes</p>
+          </div>
+        </Link>
+
+        <Link to="/teachers" style={{ textDecoration: 'none' }}>
+          <div style={{
+            padding: '30px',
+            backgroundColor: '#FF9800',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <h2>👨‍🏫 Profesores</h2>
+            <p>Lista de profesores</p>
+          </div>
+        </Link>
+
+        <Link to="/grades" style={{ textDecoration: 'none' }}>
+          <div style={{
+            padding: '30px',
+            backgroundColor: '#9C27B0',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <h2>📝 Calificaciones</h2>
+            <p>Tareas y notas</p>
+          </div>
+        </Link>
+
+        <Link to="/announcements" style={{ textDecoration: 'none' }}>
+          <div style={{
+            padding: '30px',
+            backgroundColor: '#F44336',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'transform 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <h2>📢 Avisos</h2>
+            <p>Anuncios y noticias</p>
+          </div>
+        </Link>
+
+        <div style={{
+            padding: '30px',
+            backgroundColor: '#607D8B',
+            color: 'white',
+            borderRadius: '8px',
+            opacity: 0.6
+          }}>
+            <h2>📁 Materiales</h2>
+            <p>Próximamente</p>
+          </div>
+      </div>
+    </div>
+  );
+}
+
+export default HomePage;
+
+
