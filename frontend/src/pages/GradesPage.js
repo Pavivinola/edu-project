@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { gradeService, assignmentService } from '../services/gradeService';
 import { courseService } from '../services/courseService';
+import GradeForm from '../components/GradeForm';
 
 function GradesPage() {
   const [assignments, setAssignments] = useState([]);
@@ -9,6 +10,8 @@ function GradesPage() {
   const [selectedCourse, setSelectedCourse] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingGrade, setEditingGrade] = useState(null);
 
   useEffect(() => {
     loadCourses();
@@ -74,6 +77,38 @@ function GradesPage() {
     return grades.filter(grade => grade.assignment === assignmentId);
   };
 
+  const handleCreate = () => {
+    setEditingGrade(null);
+    setShowForm(true);
+  };
+
+  const handleEdit = (grade) => {
+    setEditingGrade(grade);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (gradeId) => {
+    if (window.confirm('¿Estás seguro de eliminar esta calificación?')) {
+      try {
+        await gradeService.delete(gradeId);
+        loadGrades();
+      } catch (err) {
+        alert('Error al eliminar la calificación: ' + err.message);
+      }
+    }
+  };
+
+  const handleSave = () => {
+    setShowForm(false);
+    setEditingGrade(null);
+    loadGrades();
+  };
+
+  const handleCancel = () => {
+    setShowForm(false);
+    setEditingGrade(null);
+  };
+
   if (loading) return <div style={{ padding: '20px' }}>Cargando tareas y calificaciones...</div>;
   if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
 
@@ -82,8 +117,7 @@ function GradesPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1>Tareas y Calificaciones</h1>
         
-        <div>
-          <label style={{ marginRight: '10px' }}>Filtrar por curso:</label>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <select 
             value={selectedCourse}
             onChange={(e) => setSelectedCourse(e.target.value)}
@@ -96,6 +130,22 @@ function GradesPage() {
               </option>
             ))}
           </select>
+
+          <button
+            onClick={handleCreate}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#9C27B0',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }}
+          >
+            + Asignar Calificación
+          </button>
         </div>
       </div>
 
@@ -144,6 +194,7 @@ function GradesPage() {
                           <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Nota</th>
                           <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Porcentaje</th>
                           <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ccc' }}>Retroalimentación</th>
+                          <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -161,6 +212,37 @@ function GradesPage() {
                             <td style={{ padding: '8px', border: '1px solid #ddd', fontSize: '13px' }}>
                               {grade.feedback || '-'}
                             </td>
+                            <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                              <button
+                                onClick={() => handleEdit(grade)}
+                                style={{
+                                  padding: '4px 8px',
+                                  backgroundColor: '#FF9800',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  marginRight: '5px'
+                                }}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => handleDelete(grade.id)}
+                                style={{
+                                  padding: '4px 8px',
+                                  backgroundColor: '#F44336',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                🗑️
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -171,6 +253,14 @@ function GradesPage() {
             );
           })}
         </div>
+      )}
+
+      {showForm && (
+        <GradeForm
+          grade={editingGrade}
+          onSave={handleSave}
+          onCancel={handleCancel}
+        />
       )}
     </div>
   );

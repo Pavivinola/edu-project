@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { announcementService } from '../services/announcementService';
 import { courseService } from '../services/courseService';
+import AnnouncementForm from '../components/AnnouncementForm';
 
 function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState([]);
@@ -8,6 +9,8 @@ function AnnouncementsPage() {
   const [selectedCourse, setSelectedCourse] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState(null);
 
   useEffect(() => {
     loadCourses();
@@ -59,6 +62,38 @@ function AnnouncementsPage() {
     }
   };
 
+  const handleCreate = () => {
+    setEditingAnnouncement(null);
+    setShowForm(true);
+  };
+
+  const handleEdit = (announcement) => {
+    setEditingAnnouncement(announcement);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (announcementId) => {
+    if (window.confirm('¿Estás seguro de eliminar este aviso?')) {
+      try {
+        await announcementService.delete(announcementId);
+        selectedCourse ? loadAnnouncementsByCourse(selectedCourse) : loadAnnouncements();
+      } catch (err) {
+        alert('Error al eliminar el aviso: ' + err.message);
+      }
+    }
+  };
+
+  const handleSave = () => {
+    setShowForm(false);
+    setEditingAnnouncement(null);
+    selectedCourse ? loadAnnouncementsByCourse(selectedCourse) : loadAnnouncements();
+  };
+
+  const handleCancel = () => {
+    setShowForm(false);
+    setEditingAnnouncement(null);
+  };
+
   if (loading) return <div style={{ padding: '20px' }}>Cargando avisos...</div>;
   if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
 
@@ -67,8 +102,7 @@ function AnnouncementsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1>Avisos y Anuncios</h1>
         
-        <div>
-          <label style={{ marginRight: '10px' }}>Filtrar por curso:</label>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <select 
             value={selectedCourse}
             onChange={(e) => setSelectedCourse(e.target.value)}
@@ -81,11 +115,27 @@ function AnnouncementsPage() {
               </option>
             ))}
           </select>
+
+          <button
+            onClick={handleCreate}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#F44336',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }}
+          >
+            + Publicar Aviso
+          </button>
         </div>
       </div>
 
       {announcements.length === 0 ? (
-        <p>No hay avisos disponibles. Crea algunos desde el admin de Django.</p>
+        <p>No hay avisos disponibles. Publica uno nuevo.</p>
       ) : (
         <div style={{ display: 'grid', gap: '20px' }}>
           {announcements.map((announcement) => (
@@ -128,19 +178,53 @@ function AnnouncementsPage() {
                 padding: '15px', 
                 borderRadius: '4px',
                 lineHeight: '1.6',
-                whiteSpace: 'pre-wrap'
+                whiteSpace: 'pre-wrap',
+                marginBottom: '15px'
               }}>
                 {announcement.content}
               </div>
 
-              {announcement.updated_at !== announcement.created_at && (
-                <div style={{ fontSize: '12px', color: '#999', marginTop: '10px', fontStyle: 'italic' }}>
-                  Última actualización: {new Date(announcement.updated_at).toLocaleString()}
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => handleEdit(announcement)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#FF9800',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  ✏️ Editar
+                </button>
+                <button
+                  onClick={() => handleDelete(announcement.id)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#757575',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  🗑️ Eliminar
+                </button>
+              </div>
             </div>
           ))}
         </div>
+      )}
+
+      {showForm && (
+        <AnnouncementForm
+          announcement={editingAnnouncement}
+          onSave={handleSave}
+          onCancel={handleCancel}
+        />
       )}
     </div>
   );

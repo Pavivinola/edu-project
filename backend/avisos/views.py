@@ -1,6 +1,9 @@
 from rest_framework import viewsets, filters
 from .models import Announcement
 from .serializers import AnnouncementSerializer
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class AnnouncementViewSet(viewsets.ModelViewSet):
     queryset = Announcement.objects.all()
@@ -18,4 +21,6 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        # Si no hay usuario autenticado, usar el primer admin
+        author = self.request.user if self.request.user.is_authenticated else User.objects.filter(is_superuser=True).first()
+        serializer.save(author=author)
