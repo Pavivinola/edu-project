@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { gradeService, assignmentService } from '../services/gradeService';
 import { courseService } from '../services/courseService';
 import GradeForm from '../components/GradeForm';
+import AssignmentForm from '../components/AssignmentForm';
 
 function GradesPage() {
   const [assignments, setAssignments] = useState([]);
@@ -12,6 +13,8 @@ function GradesPage() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingGrade, setEditingGrade] = useState(null);
+  const [showAssignmentForm, setShowAssignmentForm] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState(null);
 
   useEffect(() => {
     loadCourses();
@@ -91,22 +94,63 @@ function GradesPage() {
     if (window.confirm('¿Estás seguro de eliminar esta calificación?')) {
       try {
         await gradeService.delete(gradeId);
-        loadGrades();
+        await loadGrades();
+        selectedCourse ? await loadAssignmentsByCourse(selectedCourse) : await loadAssignments();
       } catch (err) {
         alert('Error al eliminar la calificación: ' + err.message);
       }
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setShowForm(false);
     setEditingGrade(null);
-    loadGrades();
+    
+    // Recargar todo
+    await loadGrades();
+    if (selectedCourse) {
+      await loadAssignmentsByCourse(selectedCourse);
+    } else {
+      await loadAssignments();
+    }
   };
 
   const handleCancel = () => {
     setShowForm(false);
     setEditingGrade(null);
+  };
+
+  const handleCreateAssignment = () => {
+    setEditingAssignment(null);
+    setShowAssignmentForm(true);
+  };
+
+  const handleEditAssignment = (assignment) => {
+    setEditingAssignment(assignment);
+    setShowAssignmentForm(true);
+  };
+
+  const handleDeleteAssignment = async (assignmentId) => {
+    if (window.confirm('¿Estás seguro de eliminar esta tarea? Se eliminarán todas sus calificaciones.')) {
+      try {
+        await assignmentService.delete(assignmentId);
+        await loadGrades();
+        selectedCourse ? await loadAssignmentsByCourse(selectedCourse) : await loadAssignments();
+      } catch (err) {
+        alert('Error al eliminar la tarea: ' + err.message);
+      }
+    }
+  };
+
+  const handleSaveAssignment = async () => {
+    setShowAssignmentForm(false);
+    setEditingAssignment(null);
+    selectedCourse ? await loadAssignmentsByCourse(selectedCourse) : await loadAssignments();
+  };
+
+  const handleCancelAssignment = () => {
+    setShowAssignmentForm(false);
+    setEditingAssignment(null);
   };
 
   if (loading) return <div style={{ padding: '20px' }}>Cargando tareas y calificaciones...</div>;
@@ -132,6 +176,22 @@ function GradesPage() {
           </select>
 
           <button
+            onClick={handleCreateAssignment}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#2196F3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }}
+          >
+            + Crear Tarea
+          </button>
+
+          <button
             onClick={handleCreate}
             style={{
               padding: '10px 20px',
@@ -150,13 +210,16 @@ function GradesPage() {
       </div>
 
       {assignments.length === 0 ? (
-        <p>No hay tareas disponibles. Crea algunas desde el admin de Django.</p>
+        <p>No hay tareas disponibles. Crea una nueva tarea.</p>
       ) : (
         <div style={{ display: 'grid', gap: '20px' }}>
           {assignments.map((assignment) => {
             const assignmentGrades = getGradesForAssignment(assignment.id);
             const avgScore = assignmentGrades.length > 0
               ? (assignmentGrades.reduce((sum, g) => sum + parseFloat(g.score), 0) / assignmentGrades.length).toFixed(2)
+              : 'N/A';
+            const avgNotaChilena = assignmentGrades.length > 0
+              ? (assignmentGrades.reduce((sum, g) => sum + parseFloat(g.nota_chilena), 0) / assignmentGrades.length).toFixed(1)
               : 'N/A';
 
             return (
@@ -170,13 +233,47 @@ function GradesPage() {
                 }}
               >
                 <div style={{ marginBottom: '15px' }}>
-                  <h3 style={{ margin: '0 0 10px 0' }}>{assignment.title}</h3>
-                  <div style={{ display: 'flex', gap: '20px', fontSize: '14px', color: '#666' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
+                    <h3 style={{ margin: 0 }}>{assignment.title}</h3>
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <button
+                        onClick={() => handleEditAssignment(assignment)}
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: '#FF9800',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '12px'
+                        }}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAssignment(assignment.id)}
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: '#F44336',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '12px'
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '20px', fontSize: '14px', color: '#666', flexWrap: 'wrap' }}>
                     <span><strong>Curso:</strong> {assignment.course_detail?.code}</span>
                     <span><strong>Puntaje máximo:</strong> {assignment.max_score}</span>
                     <span><strong>Fecha límite:</strong> {new Date(assignment.due_date).toLocaleDateString()}</span>
                     <span><strong>Calificaciones:</strong> {assignmentGrades.length}</span>
-                    <span><strong>Promedio:</strong> {avgScore}</span>
+                    <span><strong>Promedio nota:</strong> {avgNotaChilena}</span>
+                    <span><strong>Promedio puntaje:</strong> {avgScore}</span>
                   </div>
                 </div>
 
@@ -184,13 +281,16 @@ function GradesPage() {
                   <p style={{ margin: '10px 0', color: '#555' }}>{assignment.description}</p>
                 )}
 
-                {assignmentGrades.length > 0 && (
-                  <div style={{ marginTop: '15px' }}>
-                    <h4 style={{ fontSize: '16px', marginBottom: '10px' }}>Calificaciones:</h4>
+                <div style={{ marginTop: '15px' }}>
+                  <h4 style={{ fontSize: '16px', marginBottom: '10px' }}>Calificaciones:</h4>
+                  {assignmentGrades.length === 0 ? (
+                    <p style={{ color: '#999', fontStyle: 'italic' }}>No hay calificaciones asignadas aún.</p>
+                  ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ backgroundColor: '#e0e0e0' }}>
                           <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ccc' }}>Estudiante</th>
+                          <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Puntaje</th>
                           <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Nota</th>
                           <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Porcentaje</th>
                           <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ccc' }}>Retroalimentación</th>
@@ -203,8 +303,18 @@ function GradesPage() {
                             <td style={{ padding: '8px', border: '1px solid #ddd' }}>
                               {grade.student_detail?.first_name} {grade.student_detail?.last_name}
                             </td>
-                            <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd', fontWeight: 'bold' }}>
-                              {grade.score}
+                            <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
+                              {grade.score} / {assignment.max_score}
+                            </td>
+                            <td style={{ 
+                              padding: '8px', 
+                              textAlign: 'center', 
+                              border: '1px solid #ddd', 
+                              fontWeight: 'bold',
+                              fontSize: '16px',
+                              color: grade.nota_chilena >= 4.0 ? '#4CAF50' : '#F44336'
+                            }}>
+                              {grade.nota_chilena}
                             </td>
                             <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>
                               {grade.percentage}%
@@ -247,8 +357,8 @@ function GradesPage() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
@@ -260,6 +370,14 @@ function GradesPage() {
           grade={editingGrade}
           onSave={handleSave}
           onCancel={handleCancel}
+        />
+      )}
+
+      {showAssignmentForm && (
+        <AssignmentForm
+          assignment={editingAssignment}
+          onSave={handleSaveAssignment}
+          onCancel={handleCancelAssignment}
         />
       )}
     </div>
